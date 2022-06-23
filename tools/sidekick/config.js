@@ -22,11 +22,58 @@ function hasSchema(host) {
 (() => {
   window.hlx.initSidekick({
     project: 'Milo',
-    host: 'milo.adobe.com',
-    previewHost: 'main--milo--adobecom.hlx.page',
-    byocdn: true,
-    hlx3: true,
+    owner: 'adobecom',
     plugins: [
+      {
+        id: 'register-caas',
+        condition: (s) => s.isHelix() && s.isContent(),
+        button: {
+          text: 'Register with CaaS',
+          action: async (_, s) => {
+            if (!window.milo?.cardMetadata) {
+              const { getCardMetadata } = await import('../../libs/blocks/card-metadata/card-metadata.js');
+              getCardMetadata();
+            }
+            const metadata = window.milo.cardMetadata || {};
+
+          },
+        },
+      },
+      // {
+      //   id: 'publish',
+      //   condition: (s) => s.isHelix() && s.isContent(),
+      //   override: false,
+      //   callback: (s) => {
+      //     s.loadCSS('/tools/sidekick/publish-caas.css');
+      //     s.addEventListener('published', () => {
+      //       console.log('PUBLISHED');
+      //     });
+      //   },
+      //   elements: [
+      //     {
+      //       tag: 'label',
+      //       text: 'Register with CaaS',
+      //       attrs: { for: 'caas-cb' },
+      //     },
+      //     {
+      //       tag: 'input',
+      //       attrs: { id: 'caas-cb', type: 'checkbox' },
+      //     },
+      //   ],
+      //   button: {
+      //     // text: 'New Publish',
+      //     action: async (_, s) => {
+      //       console.log(_, s);
+      //       if (!window.milo?.cardMetadata) {
+      //         const { getCardMetadata } = await import(
+      //           '../../libs/blocks/card-metadata/card-metadata.js'
+      //         );
+      //         getCardMetadata();
+      //       }
+      //       const metadata = window.milo.cardMetadata || {};
+      //     },
+      //   },
+      // },
       // TOOLS ---------------------------------------------------------------------
       {
         id: 'tools',
@@ -46,7 +93,14 @@ function hasSchema(host) {
           text: 'Translate',
           action: (_, sk) => {
             const { config } = sk;
-            window.open(`${config.pluginHost ? config.pluginHost : `http://${config.innerHost}`}/tools/translation/index.html?sp=${encodeURIComponent(window.location.href)}&owner=${config.owner}&repo=${config.repo}&ref=${config.ref}`, 'hlx-sidekick-spark-translation');
+            window.open(
+              `${
+                config.pluginHost ? config.pluginHost : `http://${config.innerHost}`
+              }/tools/translation/index.html?sp=${encodeURIComponent(window.location.href)}&owner=${
+                config.owner
+              }&repo=${config.repo}&ref=${config.ref}`,
+              'hlx-sidekick-spark-translation'
+            );
           },
         },
       },
@@ -56,7 +110,12 @@ function hasSchema(host) {
         button: {
           text: 'Check Schema',
           action: () => {
-            window.open(`https://search.google.com/test/rich-results?url=${encodeURIComponent(window.location.href)}`, 'check-schema');
+            window.open(
+              `https://search.google.com/test/rich-results?url=${encodeURIComponent(
+                window.location.href
+              )}`,
+              'check-schema'
+            );
           },
         },
       },

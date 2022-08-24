@@ -1,10 +1,7 @@
 /* global ClipboardItem */
 
-function getRepoDomain() {
-  const { ref, repo, owner } = window.hlx.sidekickConfig;
-  return `https://${ref}--${repo}--${owner}.hlx.page`;
-}
-const repoDomain = getRepoDomain();
+let domain;
+let libraries;
 
 function createCopy(blob) {
   const data = [new ClipboardItem({ [blob.type]: blob })];
@@ -20,23 +17,34 @@ function loadStyle(href) {
   }
 }
 
-function getBlockName(block) {
-  const variants = block.className.split('--');
-  let name = variants.shift();
-  name = name.replace(name[0], name[0].toUpperCase());
-  if (variants.length > 0) {
-    variants.push(variants.pop().slice(0, -1));
-    name += ` (${variants.join(', ')})`;
+function getAuthorName(block) {
+  const blockSib = block.previousElementSibling;
+  if (!blockSib) return null;
+  if (['H2', 'H3'].includes(blockSib.nodeName)) {
+    return blockSib.textContent;
   }
-  return name;
+  return null;
 }
 
-function getTable(block) {
-  const name = getBlockName(block);
+function getBlockName(block) {
+  const classes = block.className.split(' ');
+  const name = classes.shift();
+  return classes.length > 0 ? `${name} (${classes.join(', ')})` : name;
+}
+
+function getTable(block, name, path) {
+  const url = new URL(path);
+  block.querySelectorAll('img').forEach((img) => {
+    const srcSplit = img.src.split('/');
+    const mediaPath = srcSplit.pop();
+    img.style = 'max-height: 100px; width: auto;';
+    img.src = `${url.origin}/${mediaPath}`;
+  });
   const rows = [...block.children];
   const maxCols = rows.reduce((cols, row) => (
     row.children.length > cols ? row.children.length : cols), 0);
   const table = document.createElement('table');
+  table.setAttribute('border', 1);
   const headerRow = document.createElement('tr');
   headerRow.innerHTML = `<th colspan="${maxCols}">${name}</th>`;
   table.append(headerRow);
@@ -52,36 +60,37 @@ function getTable(block) {
     });
     table.append(tr);
   });
-  return { name, table: table.outerHTML };
+  return table.outerHTML;
 }
 
-async function loadBlockList(path, list) {
-  const resp = await fetch(`${repoDomain}${path}`);
-  if (!resp.ok) return;
-  const json = await resp.json();
-  json.data.forEach(async (blockGroup) => {
-    const pageResp = await fetch(`${repoDomain}${blockGroup.value}.plain.html`);
-    if (!pageResp.ok) return;
-    const html = await pageResp.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    const blocks = doc.body.querySelectorAll('div[class]');
-    blocks.forEach((block) => {
-      const item = document.createElement('li');
-      const name = document.createElement('p');
-      const converted = getTable(block);
-      name.textContent = converted.name;
-      const { table } = converted;
-      const copy = document.createElement('button');
-      copy.addEventListener('click', (e) => {
-        e.target.classList.add('copied');
-        setTimeout(() => { e.target.classList.remove('copied'); }, 3000);
-        const blob = new Blob([table], { type: 'text/html' });
-        createCopy(blob);
+async function loadBlockList(paths, list) {
+  paths.forEach(async (path) => {
+    const resp = await fetch(path);
+    if (!resp.ok) return;
+    const json = await resp.json();
+    console.log(json);
+    json.data.forEach(async (blockGroup) => {
+      const pageResp = await fetch(`${blockGroup.value}.plain.html`);
+      if (!pageResp.ok) return;
+      const html = await pageResp.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const blocks = doc.body.querySelectorAll('div[class]');
+      blocks.forEach((block) => {
+        const item = document.createElement('li');
+        const name = document.createElement('p');
+        name.textContent = getAuthorName(block) || getBlockName(block);
+        const copy = document.createElement('button');
+        copy.addEventListener('click', (e) => {
+          const table = getTable(block, name.textContent, blockGroup.value);
+          e.target.classList.add('copied');
+          setTimeout(() => { e.target.classList.remove('copied'); }, 3000);
+          const blob = new Blob([table], { type: 'text/html' });
+          createCopy(blob);
+        });
+        item.append(name, copy);
+        list.append(item);
       });
-
-      item.append(name, copy);
-      list.append(item);
     });
   });
 }
@@ -98,7 +107,7 @@ async function loadList(type, list) {
   list.innerHTML = '';
   switch (type.text) {
     case 'Blocks':
-      loadBlockList(type.path, list);
+      loadBlockList(type.paths, list);
       break;
     case 'Templates':
       stub(list);
@@ -110,12 +119,14 @@ async function loadList(type, list) {
       stub(list);
       break;
     default:
-      console.log('no list');
+      await import('../../utils/lana.js');
+      window.lana.log(`Library type not supported: ${type}`, { clientId: 'milo', sampleRate: 100 });
   }
 }
 
-(function loadContentFinder() {
-  loadStyle(`${repoDomain}/libs/ui/library/library.css`);
+function loadLibraries() {
+  if (!libraries) return;
+  loadStyle(`${domain}/libs/ui/library/library.css`);
   const finder = document.createElement('div');
   finder.className = 'con-finder';
 
@@ -140,9 +151,6 @@ async function loadList(type, list) {
   const contentList = document.createElement('ul');
   container.append(contentList);
 
-  if (!window.hlx?.sidekickConfig?.libraries) return;
-  const { libraries } = window.hlx.sidekickConfig;
-
   Object.keys(libraries).forEach((type) => {
     const item = document.createElement('li');
     item.className = 'content-type';
@@ -161,4 +169,10 @@ async function loadList(type, list) {
     });
   });
   document.body.append(finder);
-}());
+}
+
+document.addEventListener('hlx:library-loaded', (e) => {
+  domain = e.detail.domain;
+  libraries = e.detail.libraries;
+  loadLibraries();
+});

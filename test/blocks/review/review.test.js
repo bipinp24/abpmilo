@@ -3,12 +3,18 @@
 
 import { readFile } from '@web/test-runner-commands';
 import { expect } from '@esm-bundle/chai';
-import { waitForElement } from '../../helpers/selectors.js';
+import { waitForElement } from '../../helpers/waitfor.js';
 import init from '../../../libs/blocks/review/review.js';
 
 describe('Review Comp', () => {
   beforeEach(async () => {
     document.body.innerHTML = await readFile({ path: './mocks/body.html' });
+    window.localStorage.setItem('/data/review', JSON.stringify({'rating': 5}));
+    window.s_adobe = {
+      visitor: {
+        getMarketingCloudVisitorID: () => { return 'abcd'; }
+      }
+    };
   });
 
   it('could be initialized', async () => {
